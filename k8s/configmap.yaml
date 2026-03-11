@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clustersentinel-config
+  namespace: clustersentinel
+data:
+  DATABASE_URL: "sqlite:////data/db/clustersentinel.db"
+  CHROMA_PERSIST_DIR: "/data/chroma"
+  MODELS_DIR: "/data/models"
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  LLM_PROVIDER: "anthropic"
+  LLM_MODEL: "claude-sonnet-4-20250514"
+  LLM_MAX_TOKENS: "1500"
+  DEFAULT_CLUSTER_NODES: "4"
+  METRIC_INTERVAL_SECONDS: "30"
+  ANOMALY_ENSEMBLE_THRESHOLD: "0.65"

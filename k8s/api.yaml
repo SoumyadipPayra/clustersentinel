@@ -1,0 +1,114 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clustersentinel-api
+  namespace: clustersentinel
+  labels:
+    app: clustersentinel-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clustersentinel-api
+  template:
+    metadata:
+      labels:
+        app: clustersentinel-api
+    spec:
+      initContainers:
+        - name: init-dirs
+          image: busybox:latest
+          command: ["sh", "-c", "mkdir -p /data/db /data/chroma /data/models"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+        - name: seed-kb
+          image: clustersentinel:latest
+          imagePullPolicy: Never
+          env:
+            - name: MODE
+              value: seed-kb
+          envFrom:
+            - configMapRef:
+                name: clustersentinel-config
+            - secretRef:
+                name: clustersentinel-secrets
+                optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      containers:
+        - name: api
+          image: clustersentinel:latest
+          imagePullPolicy: Never
+          env:
+            - name: MODE
+              value: api
+          envFrom:
+            - configMapRef:
+                name: clustersentinel-config
+            - secretRef:
+                name: clustersentinel-secrets
+                optional: true
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: clustersentinel-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clustersentinel-api
+  namespace: clustersentinel
+spec:
+  selector:
+    app: clustersentinel-api
+  ports:
+    - port: 80
+      targetPort: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clustersentinel-api
+  namespace: clustersentinel
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: sentinel-api.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clustersentinel-api
+                port:
+                  number: 80

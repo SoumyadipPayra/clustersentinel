@@ -1,0 +1,84 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clustersentinel-dashboard
+  namespace: clustersentinel
+  labels:
+    app: clustersentinel-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clustersentinel-dashboard
+  template:
+    metadata:
+      labels:
+        app: clustersentinel-dashboard
+    spec:
+      containers:
+        - name: dashboard
+          image: clustersentinel:latest
+          imagePullPolicy: Never
+          env:
+            - name: MODE
+              value: dashboard
+          envFrom:
+            - configMapRef:
+                name: clustersentinel-config
+            - secretRef:
+                name: clustersentinel-secrets
+                optional: true
+          ports:
+            - containerPort: 8501
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: clustersentinel-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clustersentinel-dashboard
+  namespace: clustersentinel
+spec:
+  selector:
+    app: clustersentinel-dashboard
+  ports:
+    - port: 80
+      targetPort: 8501
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: clustersentinel-dashboard
+  namespace: clustersentinel
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: sentinel.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: clustersentinel-dashboard
+                port:
+                  number: 80
